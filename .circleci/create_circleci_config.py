@@ -174,7 +174,7 @@ class CircleCIJob:
             test_command += " $(cat splitted_tests.txt)"
         if self.marker is not None:
             test_command += f" -m {self.marker}"
-        test_command += " | tee tests_output.txt; exit 0"
+        test_command += " | tee tests_output.txt || true"
         steps.append({"run": {"name": "Run tests", "command": test_command}})
         steps.append({"store_artifacts": {"path": "~/transformers/tests_output.txt"}})
         steps.append({"store_artifacts": {"path": "~/transformers/reports"}})
