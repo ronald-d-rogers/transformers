@@ -179,7 +179,7 @@ class CircleCIJob:
         # This is to avoid the timeout being reported as test failure.
         if self.name == "pr_documentation_tests":
             # Save the return code, so we can check if it is timeout
-            test_command += ' touch "$?".txt'
+            test_command += ' ; touch "$?".txt'
             test_command += " || true"
         steps.append({"run": {"name": "Run tests", "command": test_command}})
 
