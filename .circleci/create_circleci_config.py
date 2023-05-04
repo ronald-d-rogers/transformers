@@ -186,6 +186,7 @@ class CircleCIJob:
             checkout_doctest_command = 'if [ -f reports/tests_pr_documentation_tests/failures_short.txt ]; then echo "some test failed"; exit -1; elif [ -f tests_output.txt ]; then echo "All tests pass!"; else echo "pytest timeout (or some other fatal error)"; fi;'
             steps.append({"run": {"name": "Check doctest results", "command": checkout_doctest_command}})
 
+        steps.append({"run": {"name": "Run tests", "command": "ls -l"}})
         steps.append({"store_artifacts": {"path": "~/transformers/tests_output.txt"}})
         steps.append({"store_artifacts": {"path": "~/transformers/reports"}})
         job["steps"] = steps
