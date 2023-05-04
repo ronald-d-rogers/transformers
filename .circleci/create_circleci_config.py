@@ -51,7 +51,8 @@ class CircleCIJob:
     resource_class: Optional[str] = "xlarge"
     tests_to_run: Optional[List[str]] = None
     working_directory: str = "~/transformers"
-    timeout: Optional[int] = None
+    # This should be only used for doctest job!
+    command_timeout: Optional[int] = None
 
     def __post_init__(self):
         # Deal with defaults for mutable attributes.
@@ -108,13 +109,13 @@ class CircleCIJob:
         steps.append({"store_artifacts": {"path": "~/transformers/installed.txt"}})
 
         all_options = {**COMMON_PYTEST_OPTIONS, **self.pytest_options}
-        pytest_flags = [f"--{key}={value}" if value is not None else f"-{key}" for key, value in all_options.items()]
+        pytest_flags = [f"--{key}={value}" if (value is not None or key in ["doctest-modules"]) else f"-{key}" for key, value in all_options.items()]
         pytest_flags.append(
             f"--make-reports={self.name}" if "examples" in self.name else f"--make-reports=tests_{self.name}"
         )
         test_command = ""
-        if self.timeout:
-            test_command = f"timeout {self.timeout} "
+        if self.command_timeout:
+            test_command = f"timeout {self.command_timeout} "
         test_command += f"python -m pytest -n {self.pytest_num_workers} " + " ".join(pytest_flags)
         
         if self.parallelism == 1:
@@ -434,7 +435,7 @@ doc_test_job = CircleCIJob(
     ],
     tests_to_run="$(cat pr_documentation_tests.txt)",
     pytest_options={"-doctest-modules": None, "doctest-glob": "*.mdx", "dist": "loadfile", "rvsA": None},
-    timeout=1200, # test cannot run longer than 1200 seconds
+    command_timeout=1200,  # test cannot run longer than 1200 seconds
     pytest_num_workers=1,
 )
 
