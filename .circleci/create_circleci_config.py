@@ -183,7 +183,7 @@ class CircleCIJob:
 
         if self.name == "pr_documentation_tests":
             # If `tests_output.txt` doesn't exist, it means the above test run step timeouts (or other fatal error).
-            checkout_doctest_command = "if [ -f reports/tests_pr_documentation_tests/failures_short.txt ]; then exit -1; elif [ -f tests_output.txt ]; then exit 0; else exit -1; fi;"
+            checkout_doctest_command = 'if [ -f reports/tests_pr_documentation_tests/failures_short.txt ]; then echo "some test failed"; exit -1; elif [ -f tests_output.txt ]; then echo "All tests pass!"; else echo "pytest timeout (or some other fatal error)"; fi;'
             steps.append({"run": {"name": "Check doctest results", "command": checkout_doctest_command}})
 
         steps.append({"store_artifacts": {"path": "~/transformers/tests_output.txt"}})
