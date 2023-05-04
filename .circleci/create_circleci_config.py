@@ -174,8 +174,18 @@ class CircleCIJob:
             test_command += " $(cat splitted_tests.txt)"
         if self.marker is not None:
             test_command += f" -m {self.marker}"
-        test_command += " | tee tests_output.txt || true"
+        test_command += " | tee tests_output.txt"
+        # Never fail the test step for the doctest job. We will check the results later, and fail that step instead.
+        # This is to avoid the timeout being reported as test failure.
+        if self.name == "pr_documentation_tests":
+            test_command += " || true"
         steps.append({"run": {"name": "Run tests", "command": test_command}})
+
+        if self.name == "pr_documentation_tests":
+            # If `tests_output.txt` doesn't exist, it means the above test run step timeouts (or other fatal error).
+            checkout_doctest_command = "if [ -f reports/tests_pr_documentation_tests/failures_short.txt ]; then exit -1; elif [ -f tests_output.txt ]; then exit 0; else exit -1; fi;"
+            steps.append({"run": {"name": "Check doctest results", "command": checkout_doctest_command}})
+
         steps.append({"store_artifacts": {"path": "~/transformers/tests_output.txt"}})
         steps.append({"store_artifacts": {"path": "~/transformers/reports"}})
         job["steps"] = steps
