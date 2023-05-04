@@ -428,12 +428,22 @@ doc_test_job = CircleCIJob(
                 "git diff --name-only --relative --diff-filter=AMR refs/remotes/upstream/main...HEAD | grep -E '\.(py|mdx)$' | grep -Ev '^\..*|/\.' | grep -Ev '__' > pr_documentation_tests.txt"
         },
         {
-            "name": "List files beings tested : `pr_documentation_tests.txt`",
+            "name": "List files beings changed : `pr_documentation_tests.txt`",
             "command":
                 "cat pr_documentation_tests.txt"
         },
+        {
+            "name": "Filter `pr_documentation_tests.txt`",
+            "command":
+                "cat pr_documentation_tests.txt > pr_documentation_tests_filtered.txt"
+        },
+        {
+            "name": "List files beings tested : `pr_documentation_tests_filtered.txt`",
+            "command":
+                "cat pr_documentation_tests_filtered.txt"
+        },
     ],
-    tests_to_run="$(cat pr_documentation_tests.txt)",
+    tests_to_run="$(cat pr_documentation_tests_filtered.txt)",  # noqa
     pytest_options={"-doctest-modules": None, "doctest-glob": "*.mdx", "dist": "loadfile", "rvsA": None},
     command_timeout=10,  # test cannot run longer than 1200 seconds
     pytest_num_workers=1,
