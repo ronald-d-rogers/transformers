@@ -178,12 +178,14 @@ class CircleCIJob:
         # Never fail the test step for the doctest job. We will check the results later, and fail that step instead.
         # This is to avoid the timeout being reported as test failure.
         if self.name == "pr_documentation_tests":
+            # Save the return code, so we can check if it is timeout
+            test_command += ' touch "$?".txt'
             test_command += " || true"
         steps.append({"run": {"name": "Run tests", "command": test_command}})
 
+        # return code `124` means the previous (pytest run) step is timeout
         if self.name == "pr_documentation_tests":
-            # If `tests_output.txt` doesn't exist, it means the above test run step timeouts (or other fatal error).
-            checkout_doctest_command = 'if [ -f reports/tests_pr_documentation_tests/failures_short.txt ]; then echo "some test failed"; exit -1; elif [ -f tests_output.txt ]; then echo "All tests pass!"; else echo "pytest timeout (or some other fatal error)"; fi;'
+            checkout_doctest_command = 'if [ -f reports/tests_pr_documentation_tests/failures_short.txt ]; then echo "some test failed"; exit -1; elif [ -f reports/tests_pr_documentation_tests/failures_short.txt ]; then echo "All tests pass!"; elif [ -f 124.txt ]; then echo "doctest timeout!"; else echo "other fatal error)"; exit -1 fi;'
             steps.append({"run": {"name": "Check doctest results", "command": checkout_doctest_command}})
 
         steps.append({"run": {"name": "Run tests", "command": "ls -l"}})
