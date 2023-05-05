@@ -174,7 +174,10 @@ class CircleCIJob:
             test_command += " $(cat splitted_tests.txt)"
         if self.marker is not None:
             test_command += f" -m {self.marker}"
-        test_command += " | tee tests_output.txt"
+        if self.name == "pr_documentation_tests":
+            test_command += " > tests_output.txt"
+        else:
+            test_command += " | tee tests_output.txt"
         # Never fail the test step for the doctest job. We will check the results later, and fail that step instead.
         # This is to avoid the timeout being reported as test failure.
         if self.name == "pr_documentation_tests":
