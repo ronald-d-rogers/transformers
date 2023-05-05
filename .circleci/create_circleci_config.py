@@ -183,7 +183,7 @@ class CircleCIJob:
         if self.name == "pr_documentation_tests":
             # Save the return code, so we can check if it is timeout
             test_command += '; touch "$?".txt'
-            test_command += " || true"
+            test_command = f"({test_command}) || true"
         steps.append({"run": {"name": "Run tests", "command": test_command}})
 
         # return code `124` means the previous (pytest run) step is timeout
