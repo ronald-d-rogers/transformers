@@ -115,7 +115,7 @@ class CircleCIJob:
         )
         test_command = ""
         if self.command_timeout:
-            test_command = f"timeout --preserve-status {self.command_timeout} "
+            test_command = f"timeout {self.command_timeout} "
         test_command += f"python -m pytest -n {self.pytest_num_workers} " + " ".join(pytest_flags)
         
         if self.parallelism == 1:
