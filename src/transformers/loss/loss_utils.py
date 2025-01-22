@@ -56,6 +56,17 @@ def ForCausalLMLoss(
     shift_labels = shift_labels.view(-1)
     # Enable model parallelism
     shift_labels = shift_labels.to(shift_logits.device)
+
+    if is_deepspeed_ulysses_enabled():
+        sp_rank = sp_group.rank()
+        shard_size = labels.size(1) // sp_size
+        start_pos = shard_size * sp_rank
+        end_pos = shard_size * (sp_rank + 1)
+        if end_pos > shift_labels.size(0):
+            end_pos = shift_labels.size(0)
+        shift_labels = shift_labels[start_pos:end_pos]
+        shift_logits = shift_logits[start_pos:end_pos]
+
     loss = fixed_cross_entropy(shift_logits, shift_labels, num_items_in_batch, ignore_index, **kwargs)
     return loss
 
