@@ -17,7 +17,6 @@ import torch.nn as nn
 from torch.nn import BCEWithLogitsLoss, MSELoss
 
 from transformers.integrations import is_deepspeed_available, is_deepspeed_ulysses_enabled
-from transformers.trainer_pt_utils import distributed_concat
 
 from .loss_deformable_detr import DeformableDetrForObjectDetectionLoss, DeformableDetrForSegmentationLoss
 from .loss_for_object_detection import ForObjectDetectionLoss, ForSegmentationLoss
@@ -39,34 +38,30 @@ def fixed_cross_entropy(source, target, num_items_in_batch: int = None, ignore_i
 def ForCausalLMLoss(
     logits, labels, vocab_size: int, num_items_in_batch: int = None, ignore_index: int = -100, **kwargs
 ):
-    if is_deepspeed_ulysses_enabled():
-        sp_group = deepspeed_groups._get_sequence_parallel_group()
-        sp_size = sp_group.size()
-        logits = distributed_concat(logits, group=sp_group, world_size=sp_size)
-        logits = logits.view(-1, labels.size(-1), vocab_size)
-
     # Upcast to float if we need to compute the loss to avoid potential precision issues
     logits = logits.float()
     # Shift so that tokens < n predict n
-    shift_logits = logits[..., :-1, :].contiguous()
-    shift_labels = labels[..., 1:].contiguous()
+    if is_deepspeed_ulysses_enabled():
+        sp_group = deepspeed_groups._get_sequence_parallel_group()
+        sp_size = sp_group.size()
+        sp_rank = sp_group.rank()
+        sp_seqlen = logits.size(1)
+
+        if sp_rank == sp_size - 1:
+            shift_logits = logits[..., :-1, :].contiguous()
+            shift_labels = labels[..., -(sp_seqlen - 1) :].contiguous()
+        else:
+            shift_logits = logits.contiguous()
+            shift_labels = labels[..., (sp_seqlen * sp_rank) + 1 : (sp_seqlen * (sp_rank + 1)) + 1].contiguous()
+    else:
+        shift_logits = logits[..., :-1, :].contiguous()
+        shift_labels = labels[..., 1:].contiguous()
 
     # Flatten the tokens
     shift_logits = shift_logits.view(-1, vocab_size)
     shift_labels = shift_labels.view(-1)
     # Enable model parallelism
     shift_labels = shift_labels.to(shift_logits.device)
-
-    if is_deepspeed_ulysses_enabled():
-        sp_rank = sp_group.rank()
-        shard_size = labels.size(1) // sp_size
-        start_pos = shard_size * sp_rank
-        end_pos = shard_size * (sp_rank + 1)
-        if end_pos > shift_labels.size(0):
-            end_pos = shift_labels.size(0)
-        shift_labels = shift_labels[start_pos:end_pos]
-        shift_logits = shift_logits[start_pos:end_pos]
-
     loss = fixed_cross_entropy(shift_logits, shift_labels, num_items_in_batch, ignore_index, **kwargs)
     return loss
 
