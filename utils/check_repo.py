@@ -70,6 +70,7 @@ PRIVATE_MODELS = [
     "Pop2PianoStack",
     "Qwen2AudioEncoder",
     "Qwen2VisionTransformerPretrainedModel",
+    "Qwen2_5_VisionTransformerPretrainedModel",
     "SwitchTransformersStack",
     "TFDPRSpanPredictor",
     "MaskFormerSwinModel",
@@ -85,8 +86,11 @@ PRIVATE_MODELS = [
     "Idefics2PerceiverResampler",
     "Idefics2VisionTransformer",
     "Idefics3VisionTransformer",
+    "SmolVLMVisionTransformer",
     "AriaTextForCausalLM",
     "AriaTextModel",
+    "Phi4MultimodalAudioModel",
+    "Phi4MultimodalVisionModel",
 ]
 
 # Update this list for models that are not tested with a comment explaining the reason it should not be.
@@ -137,8 +141,13 @@ IGNORE_NON_TESTED = (
         "SeamlessM4TTextToUnitForConditionalGeneration",  # Building part of bigger (tested) model.
         "ChameleonVQVAE",  # VQVAE here is used only for encoding (discretizing) and is tested as part of bigger model
         "Qwen2VLModel",  # Building part of bigger (tested) model. Tested implicitly through Qwen2VLForConditionalGeneration.
+        "Qwen2_5_VLModel",  # Building part of bigger (tested) model. Tested implicitly through Qwen2_5_VLForConditionalGeneration.
         "MllamaTextModel",  # Building part of bigger (tested) model. # TODO: add tests
         "MllamaVisionModel",  # Building part of bigger (tested) model. # TODO: add tests
+        "Llama4TextModel",  # Building part of bigger (tested) model. # TODO: add tests
+        "Llama4VisionModel",  # Building part of bigger (tested) model. # TODO: add tests
+        "Emu3VQVAE",  # Building part of bigger (tested) model
+        "Emu3TextModel",  # Building part of bigger (tested) model
     ]
 )
 
@@ -162,6 +171,8 @@ TEST_FILES_WITH_NO_COMMON_TESTS = [
     "models/vision_text_dual_encoder/test_modeling_flax_vision_text_dual_encoder.py",
     "models/decision_transformer/test_modeling_decision_transformer.py",
     "models/bark/test_modeling_bark.py",
+    "models/shieldgemma2/test_modeling_shieldgemma2.py",
+    "models/llama4/test_modeling_llama4.py",
 ]
 
 # Update this list for models that are not in any of the auto MODEL_XXX_MAPPING. Being in this list is an exception and
@@ -329,9 +340,14 @@ IGNORE_NON_AUTO_CONFIGURED = PRIVATE_MODELS.copy() + [
     "SegGptForImageSegmentation",
     "SiglipVisionModel",
     "SiglipTextModel",
+    "Siglip2VisionModel",
+    "Siglip2TextModel",
     "ChameleonVQVAE",  # no autoclass for VQ-VAE models
+    "VitPoseForPoseEstimation",
     "CLIPTextModel",
     "MoshiForConditionalGeneration",  # no auto class for speech-to-speech
+    "Emu3VQVAE",  # no autoclass for VQ-VAE models
+    "Emu3TextModel",  # Building part of bigger (tested) model
 ]
 
 # DO NOT edit this list!
@@ -941,7 +957,6 @@ DEPRECATED_OBJECTS = [
     "LineByLineTextDataset",
     "LineByLineWithRefDataset",
     "LineByLineWithSOPTextDataset",
-    "LogitsWarper",
     "NerPipeline",
     "PretrainedBartModel",
     "PretrainedFSMTModel",
@@ -969,6 +984,7 @@ DEPRECATED_OBJECTS = [
     "xnli_processors",
     "xnli_tasks_num_labels",
     "TFTrainingArguments",
+    "OwlViTFeatureExtractor",
 ]
 
 # Exceptionally, some objects should not be documented after all rules passed.
@@ -993,15 +1009,12 @@ UNDOCUMENTED_OBJECTS = [
     "logging",  # External module
     "requires_backends",  # Internal function
     "AltRobertaModel",  # Internal module
+    "VitPoseBackbone",  # Internal module
+    "VitPoseBackboneConfig",  # Internal module
 ]
 
 # This list should be empty. Objects in it should get their own doc page.
 SHOULD_HAVE_THEIR_OWN_PAGE = [
-    # Benchmarks
-    "PyTorchBenchmark",
-    "PyTorchBenchmarkArguments",
-    "TensorFlowBenchmark",
-    "TensorFlowBenchmarkArguments",
     "AutoBackbone",
     "BeitBackbone",
     "BitBackbone",
@@ -1009,6 +1022,7 @@ SHOULD_HAVE_THEIR_OWN_PAGE = [
     "ConvNextV2Backbone",
     "DinatBackbone",
     "Dinov2Backbone",
+    "Dinov2WithRegistersBackbone",
     "FocalNetBackbone",
     "HieraBackbone",
     "MaskFormerSwinBackbone",
@@ -1019,6 +1033,7 @@ SHOULD_HAVE_THEIR_OWN_PAGE = [
     "ResNetBackbone",
     "SwinBackbone",
     "Swinv2Backbone",
+    "TextNetBackbone",
     "TimmBackbone",
     "TimmBackboneConfig",
     "VitDetBackbone",
@@ -1071,8 +1086,7 @@ def check_all_objects_are_documented():
     undocumented_objs = [c for c in objects if c not in documented_objs and not ignore_undocumented(c)]
     if len(undocumented_objs) > 0:
         raise Exception(
-            "The following objects are in the public init so should be documented:\n - "
-            + "\n - ".join(undocumented_objs)
+            "The following objects are in the public init, but not in the docs:\n - " + "\n - ".join(undocumented_objs)
         )
     check_model_type_doc_match()
     check_public_method_exists(documented_methods_map)
@@ -1106,7 +1120,7 @@ def check_public_method_exists(documented_methods_map):
         try:
             obj_class = getattr(submodule, class_name)
         except AttributeError:
-            failures.append(f"Could not parse {submodule_name}. Are the required dependencies installed?")
+            failures.append(f"Could not parse {class_name}. Are the required dependencies installed?")
             continue
 
         # Checks that all explicitly documented methods are defined in the class

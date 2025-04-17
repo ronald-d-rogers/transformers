@@ -33,7 +33,7 @@ from transformers.testing_utils import (
     require_sentencepiece,
     require_tokenizers,
     require_torch,
-    require_torch_non_multi_gpu,
+    require_torch_non_multi_accelerator,
     slow,
     torch_device,
 )
@@ -311,7 +311,7 @@ class RagTestMixin:
 
             out = retriever(
                 input_ids,
-                question_hidden_states.cpu().detach().to(torch.float32).numpy(),
+                question_hidden_states.detach().to(device="cpu", dtype=torch.float32).numpy(),
                 prefix=config.generator.prefix,
                 return_tensors="pt",
             )
@@ -379,7 +379,7 @@ class RagTestMixin:
 
             out = retriever(
                 input_ids,
-                question_hidden_states.cpu().detach().to(torch.float32).numpy(),
+                question_hidden_states.detach().to(device="cpu", dtype=torch.float32).numpy(),
                 prefix=config.generator.prefix,
                 return_tensors="pt",
             )
@@ -438,7 +438,7 @@ class RagTestMixin:
 
             out = retriever(
                 input_ids,
-                question_hidden_states.cpu().detach().to(torch.float32).numpy(),
+                question_hidden_states.detach().to(device="cpu", dtype=torch.float32).numpy(),
                 prefix=config.generator.prefix,
                 return_tensors="pt",
                 n_docs=n_docs,
@@ -507,7 +507,7 @@ class RagTestMixin:
 
             out = retriever(
                 input_ids,
-                question_hidden_states.cpu().detach().to(torch.float32).numpy(),
+                question_hidden_states.detach().to(device="cpu", dtype=torch.float32).numpy(),
                 prefix=config.generator.prefix,
                 return_tensors="pt",
                 n_docs=retriever_n_docs,
@@ -678,7 +678,7 @@ class RagDPRT5Test(RagTestMixin, unittest.TestCase):
 @require_retrieval
 @require_sentencepiece
 @require_tokenizers
-@require_torch_non_multi_gpu
+@require_torch_non_multi_accelerator
 class RagModelIntegrationTests(unittest.TestCase):
     def tearDown(self):
         super().tearDown()
@@ -964,7 +964,7 @@ class RagModelIntegrationTests(unittest.TestCase):
 
         question_hidden_states = rag_sequence.question_encoder(input_ids, attention_mask=attention_mask)[0]
         docs_dict = retriever(
-            input_ids.cpu().detach().numpy(), question_hidden_states.cpu().detach().numpy(), return_tensors="pt"
+            input_ids.detach().cpu().numpy(), question_hidden_states.detach().cpu().numpy(), return_tensors="pt"
         )
         doc_scores = torch.bmm(
             question_hidden_states.unsqueeze(1),
@@ -1002,7 +1002,7 @@ class RagModelIntegrationTests(unittest.TestCase):
             torch_device
         )
 
-        if torch_device == "cuda":
+        if torch_device != "cpu":
             rag_token.half()
 
         input_dict = tokenizer(

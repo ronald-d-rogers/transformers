@@ -287,14 +287,6 @@ class MptModelTester:
         result = model(input_ids, attention_mask=input_mask)
         self.parent.assertEqual(result.logits.shape, (self.batch_size, self.seq_length, self.num_labels))
 
-    def create_and_check_question_answering_model(self, config, input_ids, input_mask, *args):
-        model = MptForQuestionAnswering(config)
-        model.to(torch_device)
-        model.eval()
-
-        result = model(input_ids, attention_mask=input_mask)
-        self.parent.assertEqual(result.logits.shape, (self.batch_size, self.seq_length, self.num_labels))
-
     def create_and_check_forward_and_backwards(
         self, config, input_ids, input_mask, *args, gradient_checkpointing=False
     ):
@@ -354,7 +346,6 @@ class MptModelTest(ModelTesterMixin, GenerationTesterMixin, PipelineTesterMixin,
         else ()
     )
 
-    all_generative_model_classes = (MptForCausalLM,) if is_torch_available() else ()
     fx_compatible = False
     test_missing_keys = False
     test_pruning = False
@@ -513,4 +504,4 @@ class MptIntegrationTests(unittest.TestCase):
         expected_slice = torch.Tensor([-0.2520, -0.2178, -0.1953]).to(torch_device, torch.bfloat16)
         predicted_slice = outputs.hidden_states[-1][0, 0, :3]
 
-        self.assertTrue(torch.allclose(expected_slice, predicted_slice, atol=1e-3, rtol=1e-3))
+        torch.testing.assert_close(expected_slice, predicted_slice, rtol=1e-3, atol=1e-3)

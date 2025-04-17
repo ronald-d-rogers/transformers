@@ -46,8 +46,8 @@ class UnivNetModelOutput(ModelOutput):
             The batched length in samples of each unpadded waveform in `waveforms`.
     """
 
-    waveforms: torch.FloatTensor = None
-    waveform_lengths: torch.FloatTensor = None
+    waveforms: Optional[torch.FloatTensor] = None
+    waveform_lengths: Optional[torch.FloatTensor] = None
 
 
 class UnivNetKernelPredictorResidualBlock(nn.Module):
@@ -649,3 +649,6 @@ class UnivNetModel(PreTrainedModel):
         for layer in self.resblocks:
             layer.remove_weight_norm()
         nn.utils.remove_weight_norm(self.conv_post)
+
+
+__all__ = ["UnivNetModel"]

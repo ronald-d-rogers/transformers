@@ -172,8 +172,8 @@ class TableTransformerObjectDetectionOutput(ModelOutput):
 
     loss: Optional[torch.FloatTensor] = None
     loss_dict: Optional[Dict] = None
-    logits: torch.FloatTensor = None
-    pred_boxes: torch.FloatTensor = None
+    logits: Optional[torch.FloatTensor] = None
+    pred_boxes: Optional[torch.FloatTensor] = None
     auxiliary_outputs: Optional[List[Dict]] = None
     last_hidden_state: Optional[torch.FloatTensor] = None
     decoder_hidden_states: Optional[Tuple[torch.FloatTensor]] = None
@@ -572,7 +572,7 @@ class TableTransformerEncoderLayer(nn.Module):
         self,
         hidden_states: torch.Tensor,
         attention_mask: torch.Tensor,
-        object_queries: torch.Tensor = None,
+        object_queries: Optional[torch.Tensor] = None,
         output_attentions: bool = False,
     ):
         """
@@ -1430,3 +1430,6 @@ class TableTransformerMLPPredictionHead(nn.Module):
         for i, layer in enumerate(self.layers):
             x = nn.functional.relu(layer(x)) if i < self.num_layers - 1 else layer(x)
         return x
+
+
+__all__ = ["TableTransformerForObjectDetection", "TableTransformerModel", "TableTransformerPreTrainedModel"]

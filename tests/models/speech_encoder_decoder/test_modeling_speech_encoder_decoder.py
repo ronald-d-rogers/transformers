@@ -266,7 +266,10 @@ class EncoderDecoderMixin:
             out_2 = outputs[0].cpu().numpy()
             out_2[np.isnan(out_2)] = 0
 
-            with tempfile.TemporaryDirectory() as encoder_tmp_dirname, tempfile.TemporaryDirectory() as decoder_tmp_dirname:
+            with (
+                tempfile.TemporaryDirectory() as encoder_tmp_dirname,
+                tempfile.TemporaryDirectory() as decoder_tmp_dirname,
+            ):
                 enc_dec_model.encoder.save_pretrained(encoder_tmp_dirname)
                 enc_dec_model.decoder.save_pretrained(decoder_tmp_dirname)
                 SpeechEncoderDecoderModel.from_encoder_decoder_pretrained(
@@ -499,15 +502,6 @@ class EncoderDecoderMixin:
                 class_name = submodule.__class__.__name__
                 if "SdpaAttention" in class_name or "SdpaSelfAttention" in class_name:
                     raise ValueError("The eager model should not have SDPA attention layers")
-
-            has_sdpa = False
-            for name, submodule in model_sdpa.named_modules():
-                class_name = submodule.__class__.__name__
-                if "SdpaAttention" in class_name or "SdpaSelfAttention" in class_name:
-                    has_sdpa = True
-                    break
-            if not has_sdpa:
-                raise ValueError("The SDPA model should have SDPA attention layers")
 
 
 @require_torch

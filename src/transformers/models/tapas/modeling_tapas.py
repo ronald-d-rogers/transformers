@@ -31,7 +31,6 @@ from ...modeling_utils import PreTrainedModel
 from ...pytorch_utils import (
     apply_chunking_to_forward,
     find_pruneable_heads_and_indices,
-    is_torch_greater_or_equal_than_1_12,
     prune_linear_layer,
 )
 from ...utils import (
@@ -45,12 +44,6 @@ from .configuration_tapas import TapasConfig
 
 
 logger = logging.get_logger(__name__)
-
-if not is_torch_greater_or_equal_than_1_12:
-    logger.warning(
-        f"You are using torch=={torch.__version__}, but torch>=1.12.0 is required to use "
-        "TapasModel. Please upgrade torch."
-    )
 
 _CONFIG_FOR_DOC = "TapasConfig"
 _CHECKPOINT_FOR_DOC = "google/tapas-base"
@@ -84,8 +77,8 @@ class TableQuestionAnsweringOutput(ModelOutput):
     """
 
     loss: Optional[torch.FloatTensor] = None
-    logits: torch.FloatTensor = None
-    logits_aggregation: torch.FloatTensor = None
+    logits: Optional[torch.FloatTensor] = None
+    logits_aggregation: Optional[torch.FloatTensor] = None
     hidden_states: Optional[Tuple[torch.FloatTensor]] = None
     attentions: Optional[Tuple[torch.FloatTensor]] = None
 
@@ -726,7 +719,7 @@ class TapasPreTrainedModel(PreTrainedModel):
     supports_gradient_checkpointing = True
     _supports_param_buffer_assignment = False
 
-    # Copied from transformers.models.bert.modeling_bert.BertPreTrainedModel._init_weights
+    # Copied from transformers.models.bert.modeling_bert.BertPreTrainedModel._init_weights with Bert->Tapas
     def _init_weights(self, module):
         """Initialize the weights"""
         if isinstance(module, nn.Linear):
@@ -742,6 +735,8 @@ class TapasPreTrainedModel(PreTrainedModel):
         elif isinstance(module, nn.LayerNorm):
             module.bias.data.zero_()
             module.weight.data.fill_(1.0)
+        elif isinstance(module, TapasLMPredictionHead):
+            module.bias.data.zero_()
 
 
 TAPAS_START_DOCSTRING = r"""
@@ -1248,8 +1243,8 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
         if table_mask is None:
             table_mask = torch.where(row_ids > 0, torch.ones_like(row_ids), torch.zeros_like(row_ids))
         # torch.FloatTensor[batch_size, seq_length]
-        input_mask_float = attention_mask.float().to(device)
-        table_mask_float = table_mask.float().to(device)
+        input_mask_float = attention_mask.to(device=device, dtype=torch.float)
+        table_mask_float = table_mask.to(device=device, dtype=torch.float)
         # Mask for cells that exist in the table (i.e. that are not padding).
         cell_mask, _ = reduce_mean(input_mask_float, cell_index)
 
@@ -1291,9 +1286,9 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
                 aggregate_mask = None
             else:
                 if float_answer is not None:
-                    assert (
-                        labels.shape[0] == float_answer.shape[0]
-                    ), "Make sure the answers are a FloatTensor of shape (batch_size,)"
+                    assert labels.shape[0] == float_answer.shape[0], (
+                        "Make sure the answers are a FloatTensor of shape (batch_size,)"
+                    )
                     # <float32>[batch_size]
                     aggregate_mask = _calculate_aggregate_mask(
                         float_answer,
@@ -1343,9 +1338,9 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
                 if is_supervised:
                     # Note that `aggregate_mask` is None if the setting is supervised.
                     if aggregation_labels is not None:
-                        assert (
-                            labels.shape[0] == aggregation_labels.shape[0]
-                        ), "Make sure the aggregation labels are a LongTensor of shape (batch_size,)"
+                        assert labels.shape[0] == aggregation_labels.shape[0], (
+                            "Make sure the aggregation labels are a LongTensor of shape (batch_size,)"
+                        )
                         per_example_additional_loss = _calculate_aggregation_loss(
                             logits_aggregation,
                             aggregate_mask,
@@ -2387,3 +2382,13 @@ def _calculate_regression_loss(
     per_example_answer_loss_scaled = config.answer_loss_importance * (per_example_answer_loss * aggregate_mask)
 
     return per_example_answer_loss_scaled, large_answer_loss_mask
+
+
+__all__ = [
+    "TapasForMaskedLM",
+    "TapasForQuestionAnswering",
+    "TapasForSequenceClassification",
+    "TapasModel",
+    "TapasPreTrainedModel",
+    "load_tf_weights_in_tapas",
+]

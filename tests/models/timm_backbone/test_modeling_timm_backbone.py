@@ -27,8 +27,6 @@ from ...test_modeling_common import ModelTesterMixin, floats_tensor
 
 
 if is_torch_available():
-    import torch
-
     from transformers import TimmBackbone, TimmBackboneConfig
 
 from ...test_pipeline_mixin import PipelineTesterMixin
@@ -76,17 +74,6 @@ class TimmBackboneModelTester:
             backbone=self.backbone,
         )
 
-    def create_and_check_model(self, config, pixel_values):
-        model = TimmBackbone(config=config)
-        model.to(torch_device)
-        model.eval()
-        with torch.no_grad():
-            result = model(pixel_values)
-        self.parent.assertEqual(
-            result.feature_map[-1].shape,
-            (self.batch_size, model.channels[-1], 14, 14),
-        )
-
     def prepare_config_and_inputs_for_common(self):
         config_and_inputs = self.prepare_config_and_inputs()
         config, pixel_values = config_and_inputs
@@ -114,6 +101,10 @@ class TimmBackboneModelTest(ModelTesterMixin, BackboneTesterMixin, PipelineTeste
 
     def test_config(self):
         self.config_tester.run_common_tests()
+
+    # `TimmBackbone` has no `_init_weights`. Timm's way of weight init. seems to give larger magnitude in the intermediate values during `forward`.
+    def test_batching_equivalence(self, atol=1e-4, rtol=1e-4):
+        super().test_batching_equivalence(atol=atol, rtol=rtol)
 
     def test_timm_transformer_backbone_equivalence(self):
         timm_checkpoint = "resnet18"
