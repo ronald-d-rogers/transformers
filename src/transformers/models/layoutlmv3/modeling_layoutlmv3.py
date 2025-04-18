@@ -374,6 +374,10 @@ class LayoutLMv3PreTrainedModel(PreTrainedModel):
         elif isinstance(module, nn.LayerNorm):
             module.bias.data.zero_()
             module.weight.data.fill_(1.0)
+        elif isinstance(module, LayoutLMv3Model):
+            if self.config.visual_embed:
+                module.cls_token.data.zero_()
+                module.pos_embed.data.zero_()
 
 
 class LayoutLMv3SelfAttention(nn.Module):
@@ -1382,3 +1386,12 @@ class LayoutLMv3ForSequenceClassification(LayoutLMv3PreTrainedModel):
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions,
         )
+
+
+__all__ = [
+    "LayoutLMv3ForQuestionAnswering",
+    "LayoutLMv3ForSequenceClassification",
+    "LayoutLMv3ForTokenClassification",
+    "LayoutLMv3Model",
+    "LayoutLMv3PreTrainedModel",
+]

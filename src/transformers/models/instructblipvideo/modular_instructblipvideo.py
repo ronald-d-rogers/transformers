@@ -27,6 +27,9 @@ from transformers.models.instructblip.configuration_instructblip import (
 from transformers.models.instructblip.modeling_instructblip import (
     InstructBlipForConditionalGeneration,
     InstructBlipForConditionalGenerationModelOutput,
+    InstructBlipPreTrainedModel,
+    InstructBlipQFormerModel,
+    InstructBlipVisionModel,
 )
 
 from ...configuration_utils import PretrainedConfig
@@ -137,9 +140,6 @@ class InstructBlipVideoConfig(PretrainedConfig):
         text_model_type = text_config["model_type"] if "model_type" in text_config else "opt"
         self.text_config = CONFIG_MAPPING[text_model_type](**text_config)
 
-        self.tie_word_embeddings = self.text_config.tie_word_embeddings
-        self.is_encoder_decoder = self.text_config.is_encoder_decoder
-
         self.num_query_tokens = num_query_tokens
         self.video_token_index = video_token_index
         self.qformer_config.encoder_hidden_size = self.vision_config.hidden_size
@@ -171,6 +171,18 @@ class InstructBlipVideoConfig(PretrainedConfig):
         )
 
 
+class InstructBlipVideoPreTrainedModel(InstructBlipPreTrainedModel):
+    pass
+
+
+class InstructBlipVideoVisionModel(InstructBlipVisionModel):
+    pass
+
+
+class InstructBlipVideoQFormerModel(InstructBlipQFormerModel):
+    pass
+
+
 @dataclass
 class InstructBlipVideoForConditionalGenerationModelOutput(InstructBlipForConditionalGenerationModelOutput):
     pass
@@ -191,6 +203,7 @@ class InstructBlipVideoForConditionalGeneration(InstructBlipForConditionalGenera
         labels: Optional[torch.LongTensor] = None,
         return_dict: Optional[bool] = None,
         interpolate_pos_encoding: bool = False,
+        use_cache: Optional[bool] = None,
     ) -> Union[Tuple, InstructBlipVideoForConditionalGenerationModelOutput]:
         r"""
         ```python
@@ -306,7 +319,7 @@ class InstructBlipVideoForConditionalGeneration(InstructBlipForConditionalGenera
         # otherwise we expand manually by concatenating
         if getattr(self.config, "video_token_index", None) is not None:
             special_image_mask = (input_ids == self.config.video_token_index).unsqueeze(-1).expand_as(inputs_embeds)
-            inputs_embeds[special_image_mask] = language_model_inputs.flatten()
+            inputs_embeds[special_image_mask] = language_model_inputs.flatten().to(inputs_embeds.device)
         else:
             logger.warning_once(
                 "Expanding inputs for video tokens in InstructBLIPVideo should be done in processing. "
@@ -325,6 +338,7 @@ class InstructBlipVideoForConditionalGeneration(InstructBlipForConditionalGenera
                 output_attentions=output_attentions,
                 output_hidden_states=output_hidden_states,
                 return_dict=return_dict,
+                use_cache=use_cache,
             )
             logits = outputs.logits if return_dict else outputs[0]
             loss = None
@@ -350,6 +364,7 @@ class InstructBlipVideoForConditionalGeneration(InstructBlipForConditionalGenera
                 output_hidden_states=output_hidden_states,
                 return_dict=return_dict,
                 labels=labels,
+                use_cache=use_cache,
             )
             loss = outputs.loss if return_dict else outputs[0]
             logits = outputs.logits if return_dict else outputs[1]
@@ -454,7 +469,7 @@ class InstructBlipVideoForConditionalGeneration(InstructBlipForConditionalGenera
         # otherwise we expand manually by concatenating
         if getattr(self.config, "video_token_index", None) is not None:
             special_image_mask = (input_ids == self.config.video_token_index).unsqueeze(-1).expand_as(inputs_embeds)
-            inputs_embeds[special_image_mask] = language_model_inputs.flatten()
+            inputs_embeds[special_image_mask] = language_model_inputs.flatten().to(inputs_embeds.device)
         else:
             logger.warning_once(
                 "Expanding inputs for video tokens in InstructBLIPVideo should be done in processing. "
@@ -481,3 +496,14 @@ class InstructBlipVideoForConditionalGeneration(InstructBlipForConditionalGenera
         outputs = self.language_model.generate(**inputs, **generate_kwargs)
 
         return outputs
+
+
+__all__ = [
+    "InstructBlipVideoConfig",
+    "InstructBlipVideoQFormerConfig",
+    "InstructBlipVideoVisionConfig",
+    "InstructBlipVideoVisionModel",
+    "InstructBlipVideoPreTrainedModel",
+    "InstructBlipVideoQFormerModel",
+    "InstructBlipVideoForConditionalGeneration",
+]

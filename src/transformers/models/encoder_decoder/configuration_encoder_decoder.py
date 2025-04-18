@@ -72,7 +72,7 @@ class EncoderDecoderConfig(PretrainedConfig):
 
     model_type = "encoder-decoder"
     sub_configs = {"encoder": AutoConfig, "decoder": AutoConfig}
-    is_composition = True
+    has_no_defaults_at_init = True
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -106,3 +106,6 @@ class EncoderDecoderConfig(PretrainedConfig):
         decoder_config.add_cross_attention = True
 
         return cls(encoder=encoder_config.to_dict(), decoder=decoder_config.to_dict(), **kwargs)
+
+
+__all__ = ["EncoderDecoderConfig"]

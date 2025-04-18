@@ -261,6 +261,9 @@ class SpeechEncoderDecoderModel(PreTrainedModel, GenerationMixin):
     def get_decoder(self):
         return self.decoder
 
+    def get_input_embeddings(self):
+        return self.decoder.get_input_embeddings()
+
     def get_output_embeddings(self):
         return self.decoder.get_output_embeddings()
 
@@ -275,21 +278,10 @@ class SpeechEncoderDecoderModel(PreTrainedModel, GenerationMixin):
         self.encoder.freeze_feature_encoder()
 
     @classmethod
-    def from_pretrained(cls, *args, **kwargs):
-        # At the moment fast initialization is not supported for composite models
-        if kwargs.get("_fast_init", False):
-            logger.warning(
-                "Fast initialization is currently not supported for SpeechEncoderDecoderModel. "
-                "Falling back to slow initialization..."
-            )
-        kwargs["_fast_init"] = False
-        return super().from_pretrained(*args, **kwargs)
-
-    @classmethod
     def from_encoder_decoder_pretrained(
         cls,
-        encoder_pretrained_model_name_or_path: str = None,
-        decoder_pretrained_model_name_or_path: str = None,
+        encoder_pretrained_model_name_or_path: Optional[str] = None,
+        decoder_pretrained_model_name_or_path: Optional[str] = None,
         *model_args,
         **kwargs,
     ) -> PreTrainedModel:
@@ -590,3 +582,6 @@ class SpeechEncoderDecoderModel(PreTrainedModel, GenerationMixin):
     def _reorder_cache(self, past_key_values, beam_idx):
         # apply decoder cache reordering here
         return self.decoder._reorder_cache(past_key_values, beam_idx)
+
+
+__all__ = ["SpeechEncoderDecoderModel"]

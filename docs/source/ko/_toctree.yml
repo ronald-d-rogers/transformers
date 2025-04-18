@@ -23,8 +23,6 @@
     title: 🤗 PEFT로 어댑터 로드 및 학습하기
   - local: model_sharing
     title: 만든 모델 공유하기
-  - local: transformers_agents
-    title: 에이전트
   - local: llm_tutorial
     title: 대규모 언어 모델로 생성하기
   - local: conversations
@@ -128,8 +126,6 @@
   - local: torchscript
     title: TorchScript로 내보내기
   - local: in_translation
-    title: (번역중) Benchmarks
-  - local: in_translation
     title: (번역중) Notebooks with examples
   - local: community
     title: 커뮤니티 리소스
@@ -145,34 +141,14 @@
     title: (번역중) Getting started
   - local: quantization/bitsandbytes
     title: bitsandbytes
-  - local: in_translation
-    title: (번역중) GPTQ
+  - local: quantization/gptq
+    title: GPTQ
   - local: quantization/awq
     title: AWQ
   - local: in_translation
     title: (번역중) AQLM
   - local: in_translation
-    title: (번역중) Quanto
-  - local: in_translation
-    title: (번역중) EETQ
-  - local: in_translation
-    title: (번역중) HQQ
-  - local: in_translation
-    title: (번역중) Optimum
-  - local: in_translation
-    title: (번역중) Contribute new quantization method
-  title: (번역중) 경량화 메소드
-- sections:
-  - local: in_translation
-    title: (번역중) Getting started
-  - local: in_translation
-    title: (번역중) bitsandbytes
-  - local: quantization/gptq
-    title: GPTQ
-  - local: in_translation
-    title: (번역중) AWQ
-  - local: in_translation
-    title: (번역중) AQLM
+    title: (번역중) VPTQ
   - local: quantization/quanto
     title: Quanto
   - local: quantization/eetq
@@ -270,8 +246,6 @@
   title: (번역중) 개념 가이드
 - sections:
   - sections:
-    - local: main_classes/agent
-      title: 에이전트와 도구
     - local: model_doc/auto
       title: 자동 클래스
     - local: in_translation
@@ -354,8 +328,8 @@
         title: (번역중) CamemBERT
       - local: in_translation
         title: (번역중) CANINE
-      - local: in_translation
-        title: (번역중) CodeGen
+      - local: model_doc/codegen
+        title: CodeGen
       - local: model_doc/cohere
         title: Cohere
       - local: model_doc/convbert
@@ -688,8 +662,8 @@
       sections:
       - local: in_translation
         title: (번역중) ALIGN
-      - local: in_translation
-        title: (번역중) AltCLIP
+      - local: model_doc/altclip
+        title: AltCLIP
       - local: model_doc/blip-2
         title: BLIP-2
       - local: model_doc/blip
@@ -742,6 +716,8 @@
         title: (번역중) Perceiver
       - local: in_translation
         title: (번역중) Pix2Struct
+      - local: model_doc/qwen2_vl
+        title: Qwen2VL
       - local: in_translation
         title: (번역중) Segment Anything
       - local: in_translation

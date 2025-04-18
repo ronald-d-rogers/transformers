@@ -841,7 +841,7 @@ class FunnelForPreTrainingOutput(ModelOutput):
     """
 
     loss: Optional[torch.FloatTensor] = None
-    logits: torch.FloatTensor = None
+    logits: Optional[torch.FloatTensor] = None
     hidden_states: Optional[Tuple[torch.FloatTensor]] = None
     attentions: Optional[Tuple[torch.FloatTensor]] = None
 
@@ -1592,3 +1592,17 @@ class FunnelForQuestionAnswering(FunnelPreTrainedModel):
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions,
         )
+
+
+__all__ = [
+    "FunnelBaseModel",
+    "FunnelForMaskedLM",
+    "FunnelForMultipleChoice",
+    "FunnelForPreTraining",
+    "FunnelForQuestionAnswering",
+    "FunnelForSequenceClassification",
+    "FunnelForTokenClassification",
+    "FunnelModel",
+    "FunnelPreTrainedModel",
+    "load_tf_weights_in_funnel",
+]
