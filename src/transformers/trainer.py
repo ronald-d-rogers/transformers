@@ -68,7 +68,6 @@ from .image_processing_utils import BaseImageProcessor
 from .integrations.deepspeed import (
     deepspeed_init,
     deepspeed_load_checkpoint,
-    deepspeed_ulysses_init,
     is_deepspeed_available,
     is_deepspeed_ulysses_enabled,
 )
@@ -1324,19 +1323,6 @@ class Trainer:
                     return group
         return [group["params"] for group in self.optimizer.param_groups]
 
-    def get_sequence_parallel_kwargs(self):
-        """
-        Returns the sequence parallel group if sequence parallelism is enabled.
-        """
-        if is_deepspeed_ulysses_enabled() and deepspeed_groups._zero_param_parallel_is_initialized():
-            sp_group = deepspeed_groups._get_sequence_parallel_group()
-            if sp_group is not None:
-                return {
-                    "sp_size": sp_group.size(),
-                    "sp_rank": sp_group.rank(),
-                }
-        return {}
-
     @staticmethod
     def get_optimizer_cls_and_kwargs(
         args: TrainingArguments, model: Optional[PreTrainedModel] = None
@@ -2427,7 +2413,7 @@ class Trainer:
             self.deepspeed = self.model_wrapped
 
         if self.is_deepspeed_ulysses_enabled:
-            deepspeed_ulysses_init()
+            self.model.enable_sequence_parallel()
 
         # ckpt loading
         if resume_from_checkpoint is not None:

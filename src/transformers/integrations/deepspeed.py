@@ -22,7 +22,6 @@ import weakref
 from functools import partialmethod, wraps
 
 from ..dependency_versions_check import dep_version_check
-from ..modeling_utils import DIST_ATTENTION_FUNCTIONS
 from ..utils import is_accelerate_available, is_torch_available, logging
 
 
@@ -57,7 +56,6 @@ else:
 
 if is_deepspeed_available():
     from deepspeed.sequence.layer import _SeqAllToAll
-    from deepspeed.utils import groups as deepspeed_groups
 
 
 class HfDeepSpeedConfig(DeepSpeedConfig):
@@ -491,22 +489,6 @@ def deepspeed_init(trainer, num_training_steps, inference=False):
     return optimizer, lr_scheduler
 
 
-def deepspeed_ulysses_init():
-    """
-    Initialize Ulysses (sequence parallelism) in DeepSpeed.
-    """
-
-    if not is_deepspeed_ulysses_enabled():
-        raise ValueError("Ulysses is not enabled in the current DeepSpeed configuration.")
-
-    # Get the sequence parallel group
-    sp_group = deepspeed_groups.get_sequence_parallel_group()
-    if sp_group is None:
-        raise ValueError("Failed to get the sequence parallel group.")
-
-    DIST_ATTENTION_FUNCTIONS.register("deepspeed", deepspeed_ulysses_attention(sp_group))
-
-
 def deepspeed_load_checkpoint(deepspeed_engine, checkpoint_path, load_module_strict=True):
     # it's possible that the user is trying to resume from model_path, which doesn't necessarily
     # contain a deepspeed checkpoint. e.g. examples just check if the dir exists and assume it's
@@ -531,7 +513,7 @@ def deepspeed_load_checkpoint(deepspeed_engine, checkpoint_path, load_module_str
         raise ValueError(f"Can't find a valid checkpoint at {checkpoint_path}")
 
 
-def deepspeed_ulysses_attention(sp_group):
+def deepspeed_dist_attention(sp_group):
     def decorator(attn_func):
         @wraps(attn_func)
         def wrapper(*attn_args, **attn_kwargs):

@@ -60,6 +60,7 @@ from .integrations.accelerate import find_tied_parameters, init_empty_weights
 from .integrations.deepspeed import (
     _load_state_dict_into_zero3_model,
     deepspeed_config,
+    deepspeed_dist_attention,
     is_deepspeed_available,
     is_deepspeed_ulysses_enabled,
     is_deepspeed_zero3_enabled,
@@ -163,6 +164,8 @@ if is_safetensors_available():
 
 if is_deepspeed_available():
     import deepspeed
+    from deepspeed.utils import groups as deepspeed_groups
+
 
 if is_kernels_available():
     from kernels import get_kernel
@@ -2164,9 +2167,6 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, PushToHubMixin, PeftAdapterMi
         else:
             config._attn_implementation = "eager"
 
-        if is_deepspeed_ulysses_enabled():
-            config._dist_attn_implementation = "deepspeed"
-
         config._attn_implementation_autoset = True
         return config
 
@@ -2407,6 +2407,19 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, PushToHubMixin, PeftAdapterMi
             config._attn_implementation = "flex_attention"
 
         return config
+
+    def enable_sequence_parallel(self):
+        """
+        Enables sequence parallelism for the model. This is useful for models that support
+        sequence parallelism to improve performance.
+
+        Must be called after `deepspeed.init` to ensure that the sequence parallel group is initialized.
+        """
+        if is_deepspeed_ulysses_enabled():
+            sp_group = deepspeed_groups._get_sequence_parallel_group()
+            self._sp_size = sp_group.size()
+            DIST_ATTENTION_FUNCTIONS.register("deepspeed", deepspeed_dist_attention(sp_group))
+            self.config._dist_attention_implementation = "deepspeed"
 
     def enable_input_require_grads(self):
         """
@@ -4538,7 +4551,6 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, PushToHubMixin, PeftAdapterMi
         if is_deepspeed_ulysses_enabled():
             if not getattr(model, "_supports_sequence_parallel", False):
                 raise ValueError(f"{model.__class__} does not support sequence parallelism.")
-            model._sp_size = deepspeed_config().sequence_parallel_size()
 
         # Dispatch model with hooks on all devices if necessary (not needed with a tp_plan, so we skip it as it slightly
         # harm performances)
