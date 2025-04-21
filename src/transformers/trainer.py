@@ -68,6 +68,7 @@ from .image_processing_utils import BaseImageProcessor
 from .integrations.deepspeed import (
     deepspeed_init,
     deepspeed_load_checkpoint,
+    deepspeed_ulysses_init,
     is_deepspeed_available,
     is_deepspeed_ulysses_enabled,
 )
@@ -134,13 +135,13 @@ from .trainer_utils import (
     denumpify_detensorize,
     enable_full_determinism,
     find_executable_batch_size,
+    get_inputs_shard,
     get_last_checkpoint,
     has_length,
     neftune_post_forward_hook,
     number_of_arguments,
     seed_worker,
     set_seed,
-    shard_inputs,
     speed_metrics,
 )
 from .training_args import OptimizerNames, ParallelMode, TrainingArguments
@@ -260,6 +261,7 @@ if is_accelerate_available():
 
     if is_deepspeed_available():
         from accelerate.utils import DeepSpeedSchedulerWrapper
+        from deepspeed.utils import groups as deepspeed_groups
 
 if is_accelerate_available("0.28.0"):
     from accelerate.utils import DataLoaderConfiguration
@@ -1321,6 +1323,19 @@ class Trainer:
                 if param in group["params"]:
                     return group
         return [group["params"] for group in self.optimizer.param_groups]
+
+    def get_sequence_parallel_kwargs(self):
+        """
+        Returns the sequence parallel group if sequence parallelism is enabled.
+        """
+        if is_deepspeed_ulysses_enabled() and deepspeed_groups._zero_param_parallel_is_initialized():
+            sp_group = deepspeed_groups._get_sequence_parallel_group()
+            if sp_group is not None:
+                return {
+                    "sp_size": sp_group.size(),
+                    "sp_rank": sp_group.rank(),
+                }
+        return {}
 
     @staticmethod
     def get_optimizer_cls_and_kwargs(
@@ -2410,6 +2425,9 @@ class Trainer:
         # backward compatibility
         if self.is_deepspeed_enabled:
             self.deepspeed = self.model_wrapped
+
+        if self.is_deepspeed_ulysses_enabled:
+            deepspeed_ulysses_init()
 
         # ckpt loading
         if resume_from_checkpoint is not None:
@@ -3706,9 +3724,9 @@ class Trainer:
     def _finalize_inputs(self, **inputs):
         if is_deepspeed_ulysses_enabled():
             ds_plugin = self.accelerator.state.deepspeed_plugin
-            num_shards = ds_plugin.sequence_parallel_size
-            rank = ds_plugin.sequence_parallel_rank
-            inputs = shard_inputs(num_shards, rank, **inputs)
+            sp_size = ds_plugin.sequence_parallel_size
+            sp_rank = self.args.process_index // sp_size
+            return get_inputs_shard(inputs, sp_size, sp_rank, ignore_index=self.config.ignore_index)
         return inputs
 
     def compute_loss_context_manager(self):
@@ -5208,6 +5226,11 @@ class Trainer:
         self.is_deepspeed_enabled = getattr(self.accelerator.state, "deepspeed_plugin", None) is not None
         self.is_fsdp_enabled = getattr(self.accelerator.state, "fsdp_plugin", None) is not None
         self.is_tp_enabled = getattr(self.accelerator.state, "torch_tp_plugin", None) is not None
+
+        if self.is_deepspeed_enabled:
+            deepspeed_plugin = self.accelerator.state.deepspeed_plugin
+            self.is_deepspeed_ulysses_enabled = deepspeed_plugin.is_sequence_parallel_enabled()
+
         # post accelerator creation setup
         if self.is_fsdp_enabled:
             fsdp_plugin = self.accelerator.state.fsdp_plugin

@@ -19,9 +19,10 @@ import copy
 import importlib.metadata as importlib_metadata
 import importlib.util
 import weakref
-from functools import partialmethod
+from functools import partialmethod, wraps
 
 from ..dependency_versions_check import dep_version_check
+from ..modeling_utils import DIST_ATTENTION_FUNCTIONS
 from ..utils import is_accelerate_available, is_torch_available, logging
 
 
@@ -55,7 +56,6 @@ else:
 
 
 if is_deepspeed_available():
-    import deepspeed.comm as dist
     from deepspeed.sequence.layer import _SeqAllToAll
     from deepspeed.utils import groups as deepspeed_groups
 
@@ -139,7 +139,7 @@ class HfTrainerDeepSpeedConfig(HfDeepSpeedConfig):
     def trainer_config_process(self, args, auto_find_batch_size=False):
         """
         Adjust the config with `TrainingArguments` values. This stage is run during `TrainingArguments` object
-        creation., sequence_parallel_size, sequence_parallel_rank)
+        creation.
         """
         if getattr(self, "sequence_parallel_size") and self.sequence_parallel_size() > 1:
             world_size = getattr(self, "data_parallel_size", args.world_size // self.sequence_parallel_size())()
@@ -491,6 +491,22 @@ def deepspeed_init(trainer, num_training_steps, inference=False):
     return optimizer, lr_scheduler
 
 
+def deepspeed_ulysses_init():
+    """
+    Initialize Ulysses (sequence parallelism) in DeepSpeed.
+    """
+
+    if not is_deepspeed_ulysses_enabled():
+        raise ValueError("Ulysses is not enabled in the current DeepSpeed configuration.")
+
+    # Get the sequence parallel group
+    sp_group = deepspeed_groups.get_sequence_parallel_group()
+    if sp_group is None:
+        raise ValueError("Failed to get the sequence parallel group.")
+
+    DIST_ATTENTION_FUNCTIONS.register("deepspeed", deepspeed_ulysses_attention(sp_group))
+
+
 def deepspeed_load_checkpoint(deepspeed_engine, checkpoint_path, load_module_strict=True):
     # it's possible that the user is trying to resume from model_path, which doesn't necessarily
     # contain a deepspeed checkpoint. e.g. examples just check if the dir exists and assume it's
@@ -515,21 +531,33 @@ def deepspeed_load_checkpoint(deepspeed_engine, checkpoint_path, load_module_str
         raise ValueError(f"Can't find a valid checkpoint at {checkpoint_path}")
 
 
-def deepspeed_ring_attention(attn_func, sp_group, *attn_args, **attn_kwargs):
-    scatter_idx = 2  # Scatter on num_heads dimension
-    gather_idx = 1  # Gather on seq_len dimension
-    batch_dim_idx = 0  # Synonymous with the batch_first==true
-    attn_args = list(attn_args)
-    attn_args[0] = _SeqAllToAll.apply(sp_group, attn_args[0], scatter_idx, gather_idx, batch_dim_idx)
-    attn_args[1] = _SeqAllToAll.apply(sp_group, attn_args[1], scatter_idx, gather_idx, batch_dim_idx)
-    attn_args[2] = _SeqAllToAll.apply(sp_group, attn_args[2], scatter_idx, gather_idx, batch_dim_idx)
-    attn_args = tuple(attn_args)
+def deepspeed_ulysses_attention(sp_group):
+    def decorator(attn_func):
+        @wraps(attn_func)
+        def wrapper(*attn_args, **attn_kwargs):
+            # Scatter input tensors on num_heads dimension
+            scatter_idx = 2
+            gather_idx = 1
+            batch_dim_idx = 0  # equivalent to batch_first==True
 
-    attn_output = attn_func(*attn_args, **attn_kwargs)
+            # Convert to list for modification
+            attn_args = list(attn_args)
+            attn_args[0] = _SeqAllToAll.apply(sp_group, attn_args[0], scatter_idx, gather_idx, batch_dim_idx)
+            attn_args[1] = _SeqAllToAll.apply(sp_group, attn_args[1], scatter_idx, gather_idx, batch_dim_idx)
+            attn_args[2] = _SeqAllToAll.apply(sp_group, attn_args[2], scatter_idx, gather_idx, batch_dim_idx)
+            attn_args = tuple(attn_args)
 
-    scatter_idx = 1  # Scatter back on seq_len dimension
-    gather_idx = 2  # Gather on num_heads dimension
-    batch_dim_idx = 0
-    attn_output = _SeqAllToAll.apply(sp_group, attn_output, scatter_idx, gather_idx, batch_dim_idx)
+            # Call the original attention function
+            attn_output = attn_func(*attn_args, **attn_kwargs)
 
-    return attn_output
+            # Scatter output tensor back on seq_len dimension
+            scatter_idx = 1
+            gather_idx = 2
+            batch_dim_idx = 0
+            attn_output = _SeqAllToAll.apply(sp_group, attn_output, scatter_idx, gather_idx, batch_dim_idx)
+
+            return attn_output
+
+        return wrapper
+
+    return decorator

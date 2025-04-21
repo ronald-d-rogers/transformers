@@ -50,24 +50,10 @@ def ForCausalLMLoss(
     # Upcast to float if we need to compute the loss to avoid potential precision issues
     logits = logits.float()
 
-    # Shift so that tokens < n predict n
     if shift_labels is None:
-        if "sequence_parallel_group" in kwargs:
-            sp_group = kwargs["sequence_parallel_group"]
-            sp_size = sp_group.size()
-            sp_rank = sp_group.rank()
-            sp_seqlen = logits.size(1)
-
-            logits = logits.contiguous()
-            if sp_rank == sp_size - 1:
-                shift_labels = nn.functional.pad(
-                    labels[..., -(sp_seqlen - 1) :], (0, 1), value=ignore_index
-                ).contiguous()
-            else:
-                shift_labels = labels[..., (sp_seqlen * sp_rank) + 1 : (sp_seqlen * (sp_rank + 1)) + 1].contiguous()
-        else:
-            labels = nn.functional.pad(labels, (0, 1), value=ignore_index)
-            shift_labels = labels[..., 1:].contiguous()
+        # Shift so that tokens < n predict n
+        labels = nn.functional.pad(labels, (0, 1), value=ignore_index)
+        shift_labels = labels[..., 1:].contiguous()
 
     # Flatten the tokens
     logits = logits.view(-1, vocab_size)

@@ -37,7 +37,7 @@ from ...modeling_outputs import (
     TokenClassifierOutput,
 )
 from ...modeling_rope_utils import ROPE_INIT_FUNCTIONS, dynamic_rope_update
-from ...modeling_utils import ALL_ATTENTION_FUNCTIONS, PreTrainedModel
+from ...modeling_utils import ALL_ATTENTION_FUNCTIONS, DIST_ATTENTION_FUNCTIONS, PreTrainedModel
 from ...processing_utils import Unpack
 from ...pytorch_utils import ALL_LAYERNORM_LAYERS
 from ...utils import (
@@ -273,6 +273,9 @@ class LlamaAttention(nn.Module):
                 )
             else:
                 attention_interface = ALL_ATTENTION_FUNCTIONS[self.config._attn_implementation]
+
+        if self.config._dist_attn_implementation:
+            attention_interface = DIST_ATTENTION_FUNCTIONS[self.config._dist_attn_implementation](attention_interface)
 
         attn_output, attn_weights = attention_interface(
             self,
@@ -537,13 +540,11 @@ class LlamaModel(LlamaPreTrainedModel):
         if use_cache and past_key_values is None:
             past_key_values = DynamicCache()
 
-        sequence_parallel_size = flash_attn_kwargs.get("sequence_parallel_size", 1)
-
         if cache_position is None:
             past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0
             cache_position = torch.arange(
                 past_seen_tokens,
-                past_seen_tokens + inputs_embeds.shape[1] * sequence_parallel_size,
+                past_seen_tokens + inputs_embeds.shape[1] * self.sp_size,
                 device=inputs_embeds.device,
             )
 
@@ -551,7 +552,7 @@ class LlamaModel(LlamaPreTrainedModel):
             position_ids = cache_position.unsqueeze(0)
 
         causal_mask = self._update_causal_mask(
-            attention_mask, inputs_embeds, cache_position, past_key_values, output_attentions, sequence_parallel_size
+            attention_mask, inputs_embeds, cache_position, past_key_values, output_attentions
         )
 
         hidden_states = inputs_embeds
@@ -617,12 +618,11 @@ class LlamaModel(LlamaPreTrainedModel):
         cache_position: torch.Tensor,
         past_key_values: Cache,
         output_attentions: bool = False,
-        sequence_parallel_size: int = 1,
     ):
         if self.config._attn_implementation == "flash_attention_2":
             # Fix different sequence shards going to different attn implementations (fixed vs. varlen) by just forcing
             # the use of the fixed length implementation.
-            if sequence_parallel_size > 1:
+            if self.sp_size > 1:
                 return None
             if attention_mask is not None and (attention_mask == 0.0).any():
                 return attention_mask
@@ -649,7 +649,7 @@ class LlamaModel(LlamaPreTrainedModel):
                 return None
 
         dtype, device = input_tensor.dtype, input_tensor.device
-        sequence_length = input_tensor.shape[1] * sequence_parallel_size
+        sequence_length = input_tensor.shape[1] * self.sp_size
         if using_static_cache:
             target_length = past_key_values.get_max_cache_shape()
         else:

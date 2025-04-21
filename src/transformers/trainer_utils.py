@@ -910,29 +910,24 @@ def check_target_module_exists(optim_target_modules, key: str, return_is_regex: 
     return target_module_found
 
 
-def shard_tensor(tensor, num_shards, rank, dim=1):
-    seq_length = tensor.shape[dim]
-    sub_seq_length = seq_length // num_shards
-    indices = [slice(None)] * tensor.ndim
-    indices[dim] = slice(rank * sub_seq_length, (rank + 1) * sub_seq_length)
-    return tensor[tuple(indices)]
+def get_inputs_shard(inputs, sp_size=1, sp_rank=0, ignore_index=-100):
+    if sp_size == 1:
+        return inputs
 
+    if "input_ids" not in inputs:
+        raise ValueError(
+            "Sequence parallelism is enabled but no input_ids found in inputs. "
+            "Please make sure to pass input_ids to the model."
+        )
 
-def shard_inputs(
-    num_shards=1,
-    rank=0,
-    **kwargs,
-):
-    if num_shards == 1:
-        return kwargs
-    if "input_ids" in kwargs and "position_ids" not in kwargs:
+    if "position_ids" not in inputs:
         # expand the position_ids to match batch size
-        input_ids = kwargs["input_ids"]
+        input_ids = inputs["input_ids"]
         position_ids = torch.arange(input_ids.shape[1], dtype=torch.long, device=input_ids.device)
         position_ids = position_ids.unsqueeze(0).expand(input_ids.shape[0], -1)
-        kwargs["position_ids"] = position_ids
-    result = kwargs
-    for key, value in kwargs.items():
+        inputs["position_ids"] = position_ids
+
+    for key, value in inputs.items():
         if (
             key
             in [
@@ -944,5 +939,23 @@ def shard_inputs(
             ]
             and value is not None
         ):
-            result[key] = shard_tensor(value, num_shards, rank)
-    return result
+            inputs[key] = get_tensor_slice(value, sp_size, sp_rank)
+
+    labels = inputs.get("labels")
+    if labels is not None:
+        sp_seqlen = inputs["input_ids"].shape[1]
+        if sp_rank == sp_size - 1:
+            shift_labels = torch.nn.functional.pad(labels[..., -(sp_seqlen - 1) :], (0, 1), value=ignore_index)
+        else:
+            shift_labels = labels[..., (sp_seqlen * sp_rank) + 1 : (sp_seqlen * (sp_rank + 1)) + 1]
+        inputs["shift_labels"] = shift_labels.contiguous()
+
+    return inputs
+
+
+def get_tensor_slice(tensor, size, rank, dim=1):
+    seq_length = tensor.shape[dim]
+    sub_seq_length = seq_length // size
+    indices = [slice(None)] * tensor.ndim
+    indices[dim] = slice(rank * sub_seq_length, (rank + 1) * sub_seq_length)
+    return tensor[tuple(indices)]

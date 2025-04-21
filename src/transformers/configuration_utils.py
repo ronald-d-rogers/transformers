@@ -304,6 +304,9 @@ class PretrainedConfig(PushToHubMixin):
         self._attn_implementation_internal = kwargs.pop("attn_implementation", None)
         self._attn_implementation_autoset = False
 
+        # Distributed attention implementation to use, if relevant.
+        self._dist_attn_implementation = kwargs.pop("dist_attn_implementation", None)
+
         # Drop the transformers version info
         self.transformers_version = kwargs.pop("transformers_version", None)
 

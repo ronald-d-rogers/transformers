@@ -59,7 +59,6 @@ from .integrations import PeftAdapterMixin, deepspeed_config, is_deepspeed_zero3
 from .integrations.accelerate import find_tied_parameters, init_empty_weights
 from .integrations.deepspeed import (
     _load_state_dict_into_zero3_model,
-    deepspeed_ring_attention,
     is_deepspeed_available,
     is_deepspeed_ulysses_enabled,
 )
@@ -1805,7 +1804,7 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, PushToHubMixin, PeftAdapterMi
     # Has support for a `QuantoQuantizedCache` instance as `past_key_values`
     _supports_quantized_cache = False
 
-    # Model supports sequence parallelism (DeepSpeed only)
+    # Model supports sequence parallelism
     _supports_sequence_parallel = False
 
     # A tensor parallel plan to be applied to the model when TP is enabled. For
@@ -1817,7 +1816,7 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, PushToHubMixin, PeftAdapterMi
     # for example.
     _tp_plan = None
 
-    # tensor parallel degree to which model is sharded to.
+    # Tensor parallel degree to which model is sharded to.
     _tp_size = None
 
     # A pipeline parallel plan specifying the layers which may not be present
@@ -1830,6 +1829,9 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, PushToHubMixin, PeftAdapterMi
     # - `_pp_plan["layers"][PipelineParallel.inputs]`
     # - `_pp_plan["layers"][PipelineParallel.outputs]`
     _pp_plan = None
+
+    # Sequence parallel degree to which the model's inputs are sharded to.
+    _sp_size = None
 
     # This flag signal that the model can be used as an efficient backend in TGI and vLLM
     # In practice, it means that they support attention interface functions, fully pass the kwargs
@@ -2163,6 +2165,9 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, PushToHubMixin, PeftAdapterMi
             config._attn_implementation = None
         else:
             config._attn_implementation = "eager"
+
+        if is_deepspeed_ulysses_enabled():
+            config._dist_attn_implementation = "deepspeed"
 
         config._attn_implementation_autoset = True
         return config
@@ -4412,9 +4417,6 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, PushToHubMixin, PeftAdapterMi
         # Instantiate model.
         model_init_context = cls.get_init_context(is_quantized, _is_ds_init_called)
 
-        if is_deepspeed_ulysses_enabled() and deepspeed_groups._zero_param_parallel_is_initialized():
-            model_kwargs["ring_attn_implementation"] = "deepspeed"
-
         config = copy.deepcopy(config)  # We do not want to modify the config inplace in from_pretrained.
         if not getattr(config, "_attn_implementation_autoset", False):
             config = cls._autoset_attn_implementation(
@@ -4538,6 +4540,7 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, PushToHubMixin, PeftAdapterMi
         if is_deepspeed_ulysses_enabled():
             if not getattr(model, "_supports_sequence_parallel", False):
                 raise ValueError(f"{model.__class__} does not support sequence parallelism.")
+            model._sp_size = deepspeed_config().sequence_parallel_size()
 
         # Dispatch model with hooks on all devices if necessary (not needed with a tp_plan, so we skip it as it slightly
         # harm performances)
@@ -5253,6 +5256,16 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, PushToHubMixin, PeftAdapterMi
         if getattr(self.base_model, "_pp_plan", None) is not None:
             return True
         return False
+
+    @property
+    def sp_size(self):
+        """
+        Returns the model's sequence parallelism degree.
+        """
+        # if 1, the sequences won't undergo sharding
+        if self._sp_size is None:
+            return 1
+        return self._sp_size
 
     @property
     def loss_function(self):
@@ -5987,14 +6000,12 @@ class AttentionInterface(AlgorithmInterface):
     }
 
 
-class RingAttentionInterface(AlgorithmInterface):
+class DistributedAttentionInterface(AlgorithmInterface):
     # Class instance object, so that a call to `register` can be reflected into all other files correctly, even if
     # a new instance is created (in order to locally override a given function)
-    _global_mapping = {
-        "deepspeed": deepspeed_ring_attention,
-    }
+    _global_mapping = {}
 
 
 # Global algorithm interfaces shared by all models which do not need to overwrite any of the existing ones
 ALL_ATTENTION_FUNCTIONS: AttentionInterface = AttentionInterface()
-ALL_RING_ATTENTION_FUNCTIONS: RingAttentionInterface = RingAttentionInterface()
+DIST_ATTENTION_FUNCTIONS: DistributedAttentionInterface = DistributedAttentionInterface()
