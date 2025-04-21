@@ -55,12 +55,14 @@ from .activations import get_activation
 from .configuration_utils import PretrainedConfig
 from .dynamic_module_utils import custom_object_save
 from .generation import CompileConfig, GenerationConfig
-from .integrations import PeftAdapterMixin, deepspeed_config, is_deepspeed_zero3_enabled
+from .integrations import PeftAdapterMixin
 from .integrations.accelerate import find_tied_parameters, init_empty_weights
 from .integrations.deepspeed import (
     _load_state_dict_into_zero3_model,
+    deepspeed_config,
     is_deepspeed_available,
     is_deepspeed_ulysses_enabled,
+    is_deepspeed_zero3_enabled,
 )
 from .integrations.flash_attention import flash_attention_forward
 from .integrations.flex_attention import flex_attention_forward
@@ -151,10 +153,6 @@ if is_accelerate_available():
     accelerate_version = version.parse(importlib.metadata.version("accelerate"))
     if accelerate_version >= version.parse("0.31"):
         from accelerate.utils.modeling import get_state_dict_from_offload
-
-    if is_deepspeed_available():
-        import deepspeed
-        from deepspeed.utils import groups as deepspeed_groups
 
 
 if is_safetensors_available():
