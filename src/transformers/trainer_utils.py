@@ -914,6 +914,10 @@ def get_inputs_shard(inputs, sp_size=1, sp_rank=0, ignore_index=-100):
     if sp_size == 1:
         return inputs
 
+    if "_sp_rank" in inputs:
+        # already sliced
+        return inputs
+
     if "input_ids" not in inputs:
         raise ValueError(
             "Sequence parallelism is enabled but no input_ids found in inputs. "
@@ -927,6 +931,8 @@ def get_inputs_shard(inputs, sp_size=1, sp_rank=0, ignore_index=-100):
         position_ids = position_ids.unsqueeze(0).expand(input_ids.shape[0], -1)
         inputs["position_ids"] = position_ids
 
+    result = inputs
+
     for key, value in inputs.items():
         if (
             key
@@ -939,18 +945,20 @@ def get_inputs_shard(inputs, sp_size=1, sp_rank=0, ignore_index=-100):
             ]
             and value is not None
         ):
-            inputs[key] = get_tensor_slice(value, sp_size, sp_rank)
+            result["original_" + key] = value
+            result[key] = get_tensor_slice(value, sp_size, sp_rank)
 
     labels = inputs.get("labels")
+    result["original_labels"] = labels
     if labels is not None:
-        sp_seqlen = inputs["input_ids"].shape[1]
-        if sp_rank == sp_size - 1:
-            shift_labels = torch.nn.functional.pad(labels[..., -(sp_seqlen - 1) :], (0, 1), value=ignore_index)
-        else:
-            shift_labels = labels[..., (sp_seqlen * sp_rank) + 1 : (sp_seqlen * (sp_rank + 1)) + 1]
-        inputs["shift_labels"] = shift_labels.contiguous()
+        shift_labels = torch.nn.functional.pad(labels, (0, 1), value=ignore_index)
+        shift_labels = labels[..., 1:]
+        result["labels"] = get_tensor_slice(labels, sp_size, sp_rank).contiguous()
+        result["shift_labels"] = get_tensor_slice(shift_labels, sp_size, sp_rank).contiguous()
 
-    return inputs
+    result["_sp_rank"] = sp_rank
+
+    return result
 
 
 def get_tensor_slice(tensor, size, rank, dim=1):

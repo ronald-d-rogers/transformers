@@ -305,7 +305,7 @@ class PretrainedConfig(PushToHubMixin):
         self._attn_implementation_autoset = False
 
         # Distributed attention implementation to use, if relevant.
-        self._dist_attn_implementation = kwargs.pop("dist_attn_implementation", None)
+        self._dist_attn_implementation_internal = kwargs.pop("dist_attn_implementation", None)
 
         # Drop the transformers version info
         self.transformers_version = kwargs.pop("transformers_version", None)
@@ -859,6 +859,8 @@ class PretrainedConfig(PushToHubMixin):
 
         if "_attn_implementation_internal" in serializable_config_dict:
             del serializable_config_dict["_attn_implementation_internal"]
+        if "_dist_attn_implementation_internal" in serializable_config_dict:
+            del serializable_config_dict["_dist_attn_implementation_internal"]
         # Do not serialize `base_model_tp_plan` for now
         if "base_model_tp_plan" in serializable_config_dict:
             del serializable_config_dict["base_model_tp_plan"]
@@ -887,6 +889,8 @@ class PretrainedConfig(PushToHubMixin):
             del output["_commit_hash"]
         if "_attn_implementation_internal" in output:
             del output["_attn_implementation_internal"]
+        if "_dist_attn_implementation_internal" in output:
+            del output["_dist_attn_implementation_internal"]
         # Do not serialize `base_model_tp_plan` for now
         if "base_model_tp_plan" in output:
             del output["base_model_tp_plan"]

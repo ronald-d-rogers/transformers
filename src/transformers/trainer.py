@@ -3712,7 +3712,8 @@ class Trainer:
             ds_plugin = self.accelerator.state.deepspeed_plugin
             sp_size = ds_plugin.sequence_parallel_size
             sp_rank = self.args.process_index // sp_size
-            return get_inputs_shard(inputs, sp_size, sp_rank, ignore_index=self.config.ignore_index)
+            ignore_index = getattr(self.model.config, "ignore_index", -100)
+            return get_inputs_shard(inputs, sp_size, sp_rank, ignore_index=ignore_index)
         return inputs
 
     def compute_loss_context_manager(self):
